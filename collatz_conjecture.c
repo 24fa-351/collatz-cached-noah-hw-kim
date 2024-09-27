@@ -4,46 +4,41 @@
 #include <time.h>
 
 #define MY_MAX ULLONG_MAX
+#define MAX_KEYS 10000
 
 typedef struct node
 {
-    int num;
+    int key;
+    int value;
     struct node* next;
     struct node* prev;
 } Node;
 
 typedef struct cache
 {
-    int capacity;
-    // Pointer to the next node
+    int cacheCapacity;
+    int curCacheSize;
     struct node* head;
-    // Pointer to the previous node
     struct node* tail;
 } Cache;
 
-typedef int (*fibFunc)(int);
-fibFunc ptr;
+typedef int (*getFunc)(int);
+typedef void (*putFunc)(int, int);
+getFunc getFuncPtr;
+putFunc putFuncPtr;
 
 int getRandomNum(int minNum, int maxNum);
 int countSteps(int randomNum);
 int getNextNum(int num);
-int cacheSize;
+void initializeCache(int capacity, getFunc chosenFunc);
+
 Cache *root;
-void initializeCache(int capacity, fibFunc chosenFunc);
-
-void initializeCache(int capacity, fibFunc chosenFunc) {
-    root = (Cache*)malloc(sizeof(Cache));
-    root->capacity = capacity;
-    root->head = createNode(-1);
-    root->tail = createNode(-1);
-
-    root->head->prev = root->tail;
-    root->tail->next = root->head;
-}
+Node *cacheMap[MAX_KEYS];
 
 Node *createNode(int num) {
     Node *node = (Node*)malloc(sizeof(Node));
-    node->num = num;
+    node->key = num;
+    node->value = -1;
 
     node->prev = NULL;
     node->next = NULL;
@@ -51,15 +46,72 @@ Node *createNode(int num) {
     return node;
 }
 
-int lruGet(int num) {
+void initializeCache(int capacity, getFunc chosenGetFunc, putFunc chosenPutFunc) {
+    getFuncPtr = chosenGetFunc;
+    putFuncPtr = chosenPutFunc;
+    
+    root = (Cache*)malloc(sizeof(Cache));
+    root->cacheCapacity = capacity;
+    root->curCacheSize = 0;
+    root->head = createNode(-1);
+    root->tail = createNode(-1);
+
+    root->head->next = root->tail;
+    root->tail->prev = root->head;
+
+    for (int i = 0; i < MAX_KEYS; i++) {
+        cacheMap[i] = NULL;
+    }
+}
+
+void lruInsert(Node *node) {
+    Node *prevNode = root->tail->prev;
+    Node *nxtNode = root->tail;
+    prevNode->next = node;
+    nxtNode->prev = node;
+    node->next = nxtNode;
+    node->prev = prevNode;
+
+    cacheMap[node->key] = node;
+}
+
+void lruRemove(Node *node) {
+    Node *prevNode = node->prev;
+    Node *nxtNode = node->next;
+    prevNode->next = nxtNode;
+    nxtNode->prev = prevNode;
+}
+
+int lruGet(int key) {
+    Node *curNode = cacheMap[key];
+    
+    if (curNode != NULL) {
+        lruRemove(curNode);
+        lruInsert(curNode);
+        return curNode->value;
+    }
     return -1;
 }
 
-int lruPut(int num) {
-    return -1;
+void lruPut(int key, int value) {
+    Node *curNode = cacheMap[key];
+    
+    if (curNode != NULL) {
+        lruRemove(curNode);
+    }
+    Node *node = createNode(key);
+    node->value = value;
+    lruInsert(node);
+    root->curCacheSize += 1;
+
+    if (root->curCacheSize > root->cacheCapacity) {
+        Node *lruNode = root->head->next;
+        lruRemove(lruNode);
+        cacheMap[lruNode->key] = NULL;
+        free(lruNode);
+        root->curCacheSize -= 1;
+    }
 }
-
-
 
 int getRandomNum(int minNum, int maxNum) {
     // srand(time(0));
@@ -68,9 +120,10 @@ int getRandomNum(int minNum, int maxNum) {
 }
 
 int countStepsWrapper(int num) {
-    if (ptr(num)) {
-        return ptr(num);
+    if (getFuncPtr(num) != -1) {
+        return getFuncPtr(num);
     }
+    
     ptr(num);
     return countSteps(num);
 }
@@ -119,12 +172,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // if (strcmp(argv[4], "LRU") == 0) {
-    //     initializeCache(lruGet, lruPut);
-    // } else if (strcmp(argv[4], "FIFO/Round-Robin") == 0)
-    // {
-    //     initializeCache(fifoGet, fifoPut);
-    // }
+    if (strcmp(argv[4], "LRU") == 0) {
+        initializeCache(cacheSize, lruGet, lruPut);
+    } else {
+        initializeCache(cacheSize, NULL, NULL);
+    }
     
 
     for (int i = 0; i < numToTest; i++) {

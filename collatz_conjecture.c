@@ -17,29 +17,24 @@ typedef struct node
     struct node* prev;
 } Node;
 
-typedef struct llist
-{
-    Node* head;
-    Node* tail;
-    int listLength;
-} Llist;
-
 typedef struct cache
 {
     int cacheCapacity;
     int curCacheSize;
-    Llist* linkedList;
+    Node* head;
+    Node* tail;
+    Node* cacheArr[HASH_SIZE];
 } Cache;
 
 getFunc getFuncPtr;
 putFunc putFuncPtr;
 Cache *root;
 int cacheHitCt;
-Llist** table;
+// Node** table;
 
 Node *createNode(MyInt num);
 void initializeCache(int capacity, MyInt maxKeys, getFunc chosenGetFunc, putFunc chosenPutFunc);
-void insertNode(Llist *llist,Node *node);
+void insertNode(Node *node);
 void removeNode(Node *node);
 int lruGet(MyInt key);
 void lruPut(MyInt key, int value);
@@ -64,18 +59,6 @@ Node *createNode(MyInt num) {
     return node;
 }
 
-Llist *createLlist() {
-    Llist *llist = (Llist*)malloc(sizeof(Llist));
-    llist->head = createNode(0);
-    llist->tail = createNode(0);
-    llist->listLength = 0;
-
-    llist->head->next = llist->tail;
-    llist->tail->prev = llist->head;
-
-    return llist;
-}
-
 void initializeCache(int capacity, MyInt maxKeys, getFunc chosenGetFunc, putFunc chosenPutFunc) {
     getFuncPtr = chosenGetFunc;
     putFuncPtr = chosenPutFunc;
@@ -83,21 +66,25 @@ void initializeCache(int capacity, MyInt maxKeys, getFunc chosenGetFunc, putFunc
     root = (Cache*)malloc(sizeof(Cache));
     root->cacheCapacity = capacity;
     root->curCacheSize = 0;
-    root->linkedList = createLlist();
+    root->head = createNode(0);
+    root->tail = createNode(0);
 
-    root->linkedList->head->next = root->linkedList->tail;
-    root->linkedList->tail->prev = root->linkedList->head;
+    root->head->next = root->tail;
+    root->tail->prev = root->head;
 
-    table = (Llist**)calloc(capacity, sizeof(Llist*));
+    // table = (Node**)calloc(capacity, sizeof(Node**));    
+    for (int i = 0; i < HASH_SIZE; i++) {
+        root->cacheArr[i] = NULL;
+    }
 }
 
 MyInt hash(MyInt key) {
-    return key % root->cacheCapacity;
+    return key % HASH_SIZE;
 }
 
-void insertNode(Llist *llist, Node *node) {
-    Node *prevNode = llist->tail->prev;
-    Node *nxtNode = llist->tail;
+void insertNode(Node *node) {
+    Node *prevNode = root->tail->prev;
+    Node *nxtNode = root->tail;
     prevNode->next = node;
     nxtNode->prev = node;
     node->next = nxtNode;
@@ -113,160 +100,44 @@ void removeNode(Node *node) {
 
 int lruGet(MyInt key) {
     int h = hash(key);
-    Llist *curLlist = table[h];
+    Node *curNode = root->cacheArr[h];
     
-    if (curLlist == NULL) {
+    if (curNode == NULL) {
         return -1;
     } 
 
-    // printf("Item %d is already in the Cache. It will become last element\n", key);
-    Node *curNode = curLlist->head->next;
-
-    while (curNode != NULL && curNode->key != key) {
-        curNode = curNode->next;
-    }
-    if (curNode == NULL) {
-        return -1;
-    }
-
     removeNode(curNode);
-    insertNode(root->linkedList, curNode);
+    insertNode(curNode);
     return curNode->value;
 }
 
 void lruPut(MyInt key, int value) {
     int h = hash(key);
-    Llist *curLlist = table[h];
+    Node *curNode = root->cacheArr[h];
     
-    if (curLlist != NULL) {
-        Node *curNode = curLlist->head->next;
-
-        while (curNode != NULL && curNode->key != key) {
-            curNode = curNode->next;
-        }
-
-        if (curNode != NULL) {
-            curNode->value = value;
-
-            // update lru cache
-            
-            removeNode(curNode);
-            insertNode(root->linkedList, curNode);
-            return;
-        }
-    } else {
-        curLlist = createLlist();
-        table[h] = curLlist;
-    }
+    if (curNode != NULL) {
+        removeNode(curNode);
+    } 
 
     Node *node = createNode(key);
     node->value = value;
-    insertNode(root->linkedList, node);
+    root->cacheArr[h] = node;
 
-    node = createNode(key);
-    node->value = value;
-    insertNode(curLlist, node);
-
-    curLlist->listLength += 1;
+    insertNode(node);
     root->curCacheSize += 1;
     
     if (root->curCacheSize > root->cacheCapacity) {
-        Node *lruNode = root->linkedList->head->next;
+        Node *lruNode = root->head->next;
         printf("Cache memory is full! %llu will be replaced by %llu\n", lruNode->key, node->key);
         removeNode(lruNode);
 
-        Llist *lruList = table[hash(lruNode->key)];
-        Node *lruHeadNode = lruList->head->next;
-
-        while (lruHeadNode->key != lruNode->key) {
-            lruHeadNode = lruHeadNode->next;
-        }
-        removeNode(lruHeadNode);
-
-        lruList->listLength -= 1;
-        root->curCacheSize -= 1;
-
-        if (lruList->listLength == 0) {
-            lruList = NULL;
-        }
+        root->cacheArr[lruNode->key] = NULL;
 
         free(lruNode);
-
-
-
-    // if (curLlist == NULL) {
-    //     curLlist = createLlist();
-        
-    //     Node *node = createNode(key);
-    //     node->value = value;
-    //     insertNode(node);
-
-    //     // add head and tail nodes
-    //     node = createNode(key);
-    //     node->value = value;
-    //     Node *prevNode = curLlist->tail->prev;
-    //     Node *nxtNode = curLlist->tail;
-    //     prevNode->next = node;
-    //     nxtNode->prev = node;
-    //     node->next = nxtNode;
-    //     node->prev = prevNode;
-
-    //     // only 1 node in linkedlist
-    //     // only 2 nodes
-    //     // three or more nodes
-    //     curLlist->listLength += 1;
-    //     root->curCacheSize += 1;
-
-    //     if (root->curCacheSize > root->cacheCapacity) {
-    //         Node *lruNode = root->head->next;
-
-    //         printf("Cache memory is full! %llu will be replaced by %llu\n", lruNode->key, node->key);
-    //         removeNode(lruNode);
-
-    //         Node *lruHeadNode = table[hash(lruNode->key)]->head->next;
-
-    //         while (lruHeadNode->key != lruNode->key) {
-    //             lruHeadNode = lruHeadNode->next;
-    //         }
-    //         removeNode(lruHeadNode);
-    //         table[hash(lruNode->key)]->listLength -= 1;
-    //         root->curCacheSize -= 1;
-
-    //         if (table[hash(lruNode->key)]->listLength == 0) {
-    //             table[hash(lruNode->key)] = NULL;
-    //         }
-
-    //         free(lruNode);
-    //         // free(lruHeadNode);
-    //     }
-    // } else {
-    //     Node *curNode = table[h]->head->next;
-    //     while (curNode != NULL && curNode->key != key) {
-    //         curNode = curNode->next;
-    //     }
-
-    //     if (curNode != NULL) {
-    //         curNode->value = value;
-    //         removeNode(curNode);
-    //         insertNode(curNode);
-    //     } else {
-    //         Node *node = createNode(key);
-    //         node->value = value;
-    //         insertNode(node);
-            
-    //         Node *prevNode = curLlist->tail->prev;
-    //         Node *nxtNode = curLlist->tail;
-    //         prevNode->next = node;
-    //         nxtNode->prev = node;
-    //         node->next = nxtNode;
-    //         node->prev = prevNode;
-
-    //         curLlist->listLength += 1;
-    //         root->curCacheSize += 1;
-    //     }
-    // }
     }
 }
+
+
 
 MyInt getRandomNum(MyInt minNum, MyInt maxNum) {
     // srand(time(0));
@@ -318,13 +189,13 @@ int countStepsWrapper(MyInt num) {
 }
 
 void freeCache() {
-    Node *current = root->linkedList->head;
+    Node *current = root->head;
     while (current != NULL) {
         Node *nxt = current->next;
         free(current);
         current = nxt;
     }
-    free(table);
+    // free(table);
     free(root);
 
     // if (cacheMap != NULL) {
@@ -333,8 +204,8 @@ void freeCache() {
 }
 
 void printCache() {
-    Node *current = root->linkedList->head->next;
-    while (current != root->linkedList->tail) {
+    Node *current = root->head->next;
+    while (current != root->tail) {
         printf("key: %llu, steps: %d -> ", current->key, current->value);
         current = current->next;
     }
@@ -377,36 +248,36 @@ int main(int argc, char *argv[]) {
         initializeCache(cacheSize, 10000, NULL, NULL);
     }
 
-    // for (int i = 0; i < numToTest; i++) {
-    //     MyInt randomNum = getRandomNum(minNum, maxNum);
-    //     // MyInt randomNum = 1000;
-    //     int steps = countStepsWrapper(randomNum);
-    //     printf("random number: %20llu, steps: %20d\n", randomNum, steps);
-    //     // printCache();
-    // }
+    for (int i = 0; i < numToTest; i++) {
+        MyInt randomNum = getRandomNum(minNum, maxNum);
+        // MyInt randomNum = 1000;
+        int steps = countStepsWrapper(randomNum);
+        printf("random number: %20llu, steps: %20d\n", randomNum, steps);
+        // printCache();
+    }
 
-    MyInt randomNum;
-    int steps;
+    // MyInt randomNum;
+    // int steps;
 
-    randomNum = 1;
-    printf("%d\n", randomNum);
-    steps = countStepsWrapper(randomNum);
-    printCache();
+    // randomNum = 1;
+    // printf("%d\n", randomNum);
+    // steps = countStepsWrapper(randomNum);
+    // printCache();
     
-    randomNum = 2;
-    printf("%d\n", randomNum);
-    steps = countStepsWrapper(randomNum);
-    printCache();
+    // randomNum = 2;
+    // printf("%d\n", randomNum);
+    // steps = countStepsWrapper(randomNum);
+    // printCache();
 
-    randomNum = 3;
-    printf("%d\n", randomNum);
-    steps = countStepsWrapper(randomNum);
-    printCache();
+    // randomNum = 3;
+    // printf("%d\n", randomNum);
+    // steps = countStepsWrapper(randomNum);
+    // printCache();
 
-    randomNum = 4;
-    printf("%d\n", randomNum);
-    steps = countStepsWrapper(randomNum);
-    printCache();
+    // randomNum = 4;
+    // printf("%d\n", randomNum);
+    // steps = countStepsWrapper(randomNum);
+    // printCache();
 
     // randomNum = 5;
     // steps = countStepsWrapper(randomNum);
@@ -420,6 +291,81 @@ int main(int argc, char *argv[]) {
     
     return 0;
 };
+
+// // Chaining Hash Map
+// int lruGet(MyInt key) {
+//     int h = hash(key);
+//     Node *cur = root->cacheArr[h];
+    
+//     while (cur != NULL && cur->key != key) {
+//         cur = cur->next;
+//     }
+
+//     if (cur == NULL) {
+//         return -1;
+//     } 
+
+//     removeNode(cur);
+//     insertNode(cur);
+//     return cur->value;
+// }
+
+// void lruPut(MyInt key, int value) {
+//     int h = hash(key);
+//     Node *cur = root->cacheArr[h];
+//     Node *prev = NULL;
+
+//     while (cur != NULL && cur->key != key) {
+//         prev = cur;
+//         cur = cur->next;
+//     }
+
+//     if (cur != NULL) {
+//         cur->value = value;
+//         removeNode(cur);
+//         insertNode(cur);
+//         return;
+//     } 
+
+//     Node *newNode = createNode(key);
+//     newNode->value = value;
+
+//     if (prev == NULL) {
+//         root->cacheArr[h] = newNode;
+//     } else {
+//         prev->next = newNode;
+//     }
+
+//     insertNode(newNode);
+//     root->curCacheSize += 1;
+    
+//     if (root->curCacheSize > root->cacheCapacity) {
+//         Node *lruNode = root->head->next;
+//         printf("Cache memory is full! %llu will be replaced by %llu\n", lruNode->key, newNode->key);
+        
+//         removeNode(lruNode);
+
+//         int lruHash = hash(lruNode->key);
+//         Node *hashHead = root->cacheArr[lruHash];
+
+//         if (hashHead == lruNode) {
+//             root->cacheArr[lruHash] = lruNode->next;
+//         } else {
+//             Node *prev = NULL;
+//             while (hashHead != NULL && hashHead != lruNode) {
+//                 prev = hashHead;
+//                 hashHead = hashHead->next;
+//             }
+//             if (prev != NULL) {
+//                 prev->next = hashHead->next;
+//             }
+//         }
+//         free(lruNode);
+//         root->curCacheSize-= 1;
+//     }
+// }
+
+
 
 // int countSteps(MyInt num) {
 //     int count = 0;

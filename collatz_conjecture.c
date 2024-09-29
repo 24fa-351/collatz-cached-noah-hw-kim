@@ -30,16 +30,19 @@ getFunc getFuncPtr;
 putFunc putFuncPtr;
 Cache *root;
 int cacheHitCt;
+int cacheAccessCt;
 // Node** table;
 
 Node *createNode(MyInt num);
 void initializeCache(int capacity, MyInt maxKeys, getFunc chosenGetFunc, putFunc chosenPutFunc);
 void insertNode(Node *node);
 void removeNode(Node *node);
-int lruGet(MyInt key);
-void lruPut(MyInt key, int value);
-int fifoGet(MyInt key);
-void fifoPut(MyInt key, int value);
+// int lruGet(MyInt key);
+// void lruPut(MyInt key, int value);
+// int fifoGet(MyInt key);
+// void fifoPut(MyInt key, int value);
+int naiveLRUGet(MyInt key);
+void naiveLRUPut(MyInt key, int value);
 
 MyInt getRandomNum(MyInt minNum, MyInt maxNum);
 MyInt getNextNum(MyInt num);
@@ -72,6 +75,9 @@ void initializeCache(int capacity, MyInt maxKeys, getFunc chosenGetFunc, putFunc
     root->head->next = root->tail;
     root->tail->prev = root->head;
 
+    cacheHitCt = 0;
+    cacheAccessCt = 0;
+
     // table = (Node**)calloc(capacity, sizeof(Node**));    
     for (int i = 0; i < HASH_SIZE; i++) {
         root->cacheArr[i] = NULL;
@@ -98,46 +104,36 @@ void removeNode(Node *node) {
     nxtNode->prev = prevNode;
 }
 
-int lruGet(MyInt key) {
-    int h = hash(key);
-    Node *curNode = root->cacheArr[h];
+int naiveLRUGet(MyInt key) {
+    Node *curNode = root->head->next;
     
+    while (curNode != NULL && curNode->key != key) {
+        curNode = curNode->next;
+    }
+
     if (curNode == NULL) {
         return -1;
-    } 
+    }
 
     removeNode(curNode);
     insertNode(curNode);
     return curNode->value;
 }
 
-void lruPut(MyInt key, int value) {
-    int h = hash(key);
-    Node *curNode = root->cacheArr[h];
-    
-    if (curNode != NULL) {
-        removeNode(curNode);
-    } 
-
+void naiveLRUPut(MyInt key, int value) {
     Node *node = createNode(key);
     node->value = value;
-    root->cacheArr[h] = node;
-
     insertNode(node);
     root->curCacheSize += 1;
     
     if (root->curCacheSize > root->cacheCapacity) {
         Node *lruNode = root->head->next;
-        printf("Cache memory is full! %llu will be replaced by %llu\n", lruNode->key, node->key);
+        // printf("Cache memory is full! %llu will be replaced by %llu\n", lruNode->key, node->key);
         removeNode(lruNode);
-
-        root->cacheArr[lruNode->key] = NULL;
-
+        root->curCacheSize -= 1;
         free(lruNode);
     }
 }
-
-
 
 MyInt getRandomNum(MyInt minNum, MyInt maxNum) {
     // srand(time(0));
@@ -171,11 +167,12 @@ int countStepsWrapper(MyInt num) {
     int cachedValue = -1;
     
     if (getFuncPtr != NULL) {
+        cacheAccessCt += 1;
         cachedValue = getFuncPtr(num);
     }
 
     if (cachedValue != -1) {
-        printf("cache hit! num: %d\n", num);
+        // printf("cache hit! num: %d\n", num);
         cacheHitCt += 1;
         return cachedValue;
     }
@@ -206,7 +203,7 @@ void freeCache() {
 void printCache() {
     Node *current = root->head->next;
     while (current != root->tail) {
-        printf("key: %llu, steps: %d -> ", current->key, current->value);
+        printf("key: %llu, steps: %d\n", current->key, current->value);
         current = current->next;
     }
     printf("\n");
@@ -241,7 +238,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (strcmp(argv[4], "LRU") == 0) {
-        initializeCache(cacheSize, 10000, lruGet, lruPut);
+        initializeCache(cacheSize, 10000, naiveLRUGet, naiveLRUPut);
     } else if (strcmp(argv[4], "FIFO/Round-Robin") == 0 || strcmp(argv[4], "Round-Robin") == 0 || strcmp(argv[4], "FIFO") == 0){
         // initializeCache(cacheSize, 10000, fifoGet, fifoPut);
     } else {
@@ -250,9 +247,9 @@ int main(int argc, char *argv[]) {
 
     for (int i = 0; i < numToTest; i++) {
         MyInt randomNum = getRandomNum(minNum, maxNum);
-        // MyInt randomNum = 1000;
         int steps = countStepsWrapper(randomNum);
-        printf("random number: %20llu, steps: %20d\n", randomNum, steps);
+        // printf("random number: %20llu, steps: %20d\n", randomNum, steps);
+        // printf("Cache Access Ct: %d, Cache Hit Ct: %d, Cache Hit Rate: %.2f%%\n", cacheAccessCt, cacheHitCt, ((float)cacheHitCt / (float)cacheAccessCt) * 100);
         // printCache();
     }
 
@@ -262,35 +259,88 @@ int main(int argc, char *argv[]) {
     // randomNum = 1;
     // printf("%d\n", randomNum);
     // steps = countStepsWrapper(randomNum);
+    // printf("random number: %20llu, steps: %20d\n", randomNum, steps);
+    // printf("Cache Access Ct: %d, Cache Hit Ct: %d, Cache Hit Rate: %.2f%%\n", cacheAccessCt, cacheHitCt, ((float)cacheHitCt / (float)cacheAccessCt) * 100);
     // printCache();
     
     // randomNum = 2;
     // printf("%d\n", randomNum);
     // steps = countStepsWrapper(randomNum);
+    // printf("random number: %20llu, steps: %20d\n", randomNum, steps);
+    // printf("Cache Access Ct: %d, Cache Hit Ct: %d, Cache Hit Rate: %.2f%%\n", cacheAccessCt, cacheHitCt, ((float)cacheHitCt / (float)cacheAccessCt) * 100);
     // printCache();
 
     // randomNum = 3;
     // printf("%d\n", randomNum);
     // steps = countStepsWrapper(randomNum);
-    // printCache();
-
-    // randomNum = 4;
-    // printf("%d\n", randomNum);
-    // steps = countStepsWrapper(randomNum);
+    // printf("random number: %20llu, steps: %20d\n", randomNum, steps);
+    // printf("Cache Access Ct: %d, Cache Hit Ct: %d, Cache Hit Rate: %.2f%%\n", cacheAccessCt, cacheHitCt, ((float)cacheHitCt / (float)cacheAccessCt) * 100);
     // printCache();
 
     // randomNum = 5;
+    // printf("%d\n", randomNum);
     // steps = countStepsWrapper(randomNum);
+    // printf("random number: %20llu, steps: %20d\n", randomNum, steps);
+    // printf("Cache Access Ct: %d, Cache Hit Ct: %d, Cache Hit Rate: %.2f%%\n", cacheAccessCt, cacheHitCt, ((float)cacheHitCt / (float)cacheAccessCt) * 100);
     // printCache();
 
+    // randomNum = 10;
+    // printf("%d\n", randomNum);
+    // steps = countStepsWrapper(randomNum);
+    // printf("random number: %20llu, steps: %20d\n", randomNum, steps);
+    // printf("Cache Access Ct: %d, Cache Hit Ct: %d, Cache Hit Rate: %.2f%%\n", cacheAccessCt, cacheHitCt, ((float)cacheHitCt / (float)cacheAccessCt) * 100);
+    // printCache();
 
+    // prevent divide by 0
+    if (cacheAccessCt == 0) {
+        cacheAccessCt = 1;
+    }
 
-    printf("Total Test Ct: %d, Cache Hit Ct: %d, Cache Hit Rate: %.2f%%\n", numToTest, cacheHitCt, ((float)cacheHitCt / (float)numToTest) * 100);
+    printf("Cache Access Ct: %d, Cache Hit Ct: %d, Cache Hit Rate: %.2f%%\n", cacheAccessCt, cacheHitCt, ((float)cacheHitCt / (float)cacheAccessCt) * 100);
 
     freeCache();
     
     return 0;
 };
+
+// int lruGet(MyInt key) {
+//     int h = hash(key);
+//     Node *curNode = root->cacheArr[h];
+    
+//     if (curNode == NULL) {
+//         return -1;
+//     } 
+
+//     removeNode(curNode);
+//     insertNode(curNode);
+//     return curNode->value;
+// }
+
+// void lruPut(MyInt key, int value) {
+//     int h = hash(key);
+//     Node *curNode = root->cacheArr[h];
+    
+//     if (curNode != NULL) {
+//         removeNode(curNode);
+//     } 
+
+//     Node *node = createNode(key);
+//     node->value = value;
+//     root->cacheArr[h] = node;
+
+//     insertNode(node);
+//     root->curCacheSize += 1;
+    
+//     if (root->curCacheSize > root->cacheCapacity) {
+//         Node *lruNode = root->head->next;
+//         // printf("Cache memory is full! %llu will be replaced by %llu\n", lruNode->key, node->key);
+//         removeNode(lruNode);
+
+//         root->cacheArr[lruNode->key] = NULL;
+
+//         free(lruNode);
+//     }
+// }
 
 // // Chaining Hash Map
 // int lruGet(MyInt key) {

@@ -135,6 +135,35 @@ void naiveLRUPut(MyInt key, int value) {
     }
 }
 
+int naiveFIFOGet(MyInt key) {
+    Node *curNode = root->head->next;
+    
+    while (curNode != NULL && curNode->key != key) {
+        curNode = curNode->next;
+    }
+
+    if (curNode == NULL) {
+        return -1;
+    }
+
+    return curNode->value;
+}
+
+void naiveFIFOPut(MyInt key, int value) {
+    Node *node = createNode(key);
+    node->value = value;
+    insertNode(node);
+    root->curCacheSize += 1;
+    
+    if (root->curCacheSize > root->cacheCapacity) {
+        Node *lruNode = root->head->next;
+        // printf("Cache memory is full! %llu will be replaced by %llu\n", lruNode->key, node->key);
+        removeNode(lruNode);
+        root->curCacheSize -= 1;
+        free(lruNode);
+    }
+}
+
 MyInt getRandomNum(MyInt minNum, MyInt maxNum) {
     // srand(time(0));
     return rand() % (maxNum - minNum + 1) + minNum;
@@ -240,7 +269,7 @@ int main(int argc, char *argv[]) {
     if (strcmp(argv[4], "LRU") == 0) {
         initializeCache(cacheSize, 10000, naiveLRUGet, naiveLRUPut);
     } else if (strcmp(argv[4], "FIFO/Round-Robin") == 0 || strcmp(argv[4], "Round-Robin") == 0 || strcmp(argv[4], "FIFO") == 0){
-        // initializeCache(cacheSize, 10000, fifoGet, fifoPut);
+        initializeCache(cacheSize, 10000, naiveFIFOGet, naiveFIFOPut);
     } else {
         initializeCache(cacheSize, 10000, NULL, NULL);
     }
@@ -284,7 +313,7 @@ int main(int argc, char *argv[]) {
     // printf("Cache Access Ct: %d, Cache Hit Ct: %d, Cache Hit Rate: %.2f%%\n", cacheAccessCt, cacheHitCt, ((float)cacheHitCt / (float)cacheAccessCt) * 100);
     // printCache();
 
-    // randomNum = 10;
+    // randomNum = 2;
     // printf("%d\n", randomNum);
     // steps = countStepsWrapper(randomNum);
     // printf("random number: %20llu, steps: %20d\n", randomNum, steps);

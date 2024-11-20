@@ -5,43 +5,54 @@
 #include "cache.h"
 #include "collatz_conjecture.h"
 
-MyInt getRandomNum(MyInt minNum, MyInt maxNum) {
+MyInt getRandomNum(MyInt minNum, MyInt maxNum)
+{
     // srand(time(0));
     return rand() % (maxNum - minNum + 1) + minNum;
 }
 
-MyInt getNextNum(MyInt num) {
-    if (num % 2 == 0) {
+MyInt getNextNum(MyInt num)
+{
+    if (num % 2 == 0)
+    {
         return num / 2;
-    } else {
+    }
+    else
+    {
         return 3 * num + 1;
     }
 }
 
-int countStepsRecursive(MyInt num) {
+int countStepsRecursive(MyInt num)
+{
     // base
-    if (num == 1) {
+    if (num == 1)
+    {
         return 0;
     }
 
     MyInt nxtNum = getNextNum(num);
 
-    if (nxtNum == 1) return 1;
+    if (nxtNum == 1)
+        return 1;
 
     int steps = 1 + countStepsWrapper(nxtNum);
 
     return steps;
 }
 
-int countStepsWrapper(MyInt num) {
+int countStepsWrapper(MyInt num)
+{
     int cachedValue = -1;
-    
-    if (getFuncPtr != NULL) {
+
+    if (getFuncPtr != NULL)
+    {
         // cacheAccessCt += 1;
         cachedValue = getFuncPtr(num);
     }
 
-    if (cachedValue != -1) {
+    if (cachedValue != -1)
+    {
         // printf("cache hit! num: %d\n", num);
         // cacheHitCt += 1;
         return cachedValue;
@@ -49,7 +60,8 @@ int countStepsWrapper(MyInt num) {
 
     int steps = countStepsRecursive(num);
 
-    if (putFuncPtr != NULL) {
+    if (putFuncPtr != NULL)
+    {
         putFuncPtr(num, steps);
     }
     return steps;

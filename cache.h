@@ -16,16 +16,16 @@ typedef struct node
 {
     MyInt key;
     int value;
-    struct node* next;
-    struct node* prev;
+    struct node *next;
+    struct node *prev;
 } Node;
 
 typedef struct cache
 {
     int cacheCapacity;
     int curCacheSize;
-    Node* head;
-    Node* tail;
+    Node *head;
+    Node *tail;
 } Cache;
 
 extern getFunc getFuncPtr;
@@ -34,7 +34,7 @@ extern Cache *root;
 extern int cacheHitCt;
 extern int cacheAccessCt;
 
-Node* createNode(MyInt num);
+Node *createNode(MyInt num);
 void initializeCache(int capacity, MyInt maxKeys, getFunc chosenGetFunc, putFunc chosenPutFunc);
 void insertNode(Node *node);
 void removeNode(Node *node);

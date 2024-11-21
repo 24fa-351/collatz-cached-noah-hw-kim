@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
         initializeCache(cacheSize, 10000, NULL, NULL);
     }
 
-    for (int i = 0; i < numToTest; i++)
+    for (int idx = 0; idx < numToTest; idx++)
     {
         MyInt randomNum = getRandomNum(minNum, maxNum);
         int steps = countStepsWrapper(randomNum);
